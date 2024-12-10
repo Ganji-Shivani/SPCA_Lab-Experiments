@@ -1,0 +1,365 @@
+1st exp: To verify removal of noise by Moving Mean/ Average
+clear
+close all
+clc
+load handel
+y= y(1:256);
+figure;
+plot(y)
+title('Audio File With Noise');
+ysmm= movmean(y, 3, 'endpoints', 'discard' );
+figure;
+plot(ysmm)
+title('Audio File After Filtering'); 
+
+
+
+
+
+
+
+2nd exp: To remove the noise (salt pepper noise) from Image data using averaging filter and median filters
+
+a = imread('flower.jpg');
+figure;
+imshow(a);
+title('Original Image');
+j = imnoise(a, 'salt & pepper', 0.02);
+figure;
+imshow(j);
+title('Image with Salt and Pepper Noise');
+k = zeros(size(j));
+for c = 1:size(j, 3)
+ k(:, :, c) = filter2(fspecial('average', 3), double(j(:, :, c)));
+end
+k = mat2gray(k);
+figure;
+imshow(k);
+title('Filtered Image with Average Filter');
+
+
+
+
+
+
+
+
+
+
+
+
+3rd exp: Design of FIR adaptive filter as an Equalization filter
+
+% Define Parameters
+fs = 44100; % Sample rate
+worN = logspace(log10(20), log10(20^(3.3)), 1000); % Frequencies to plot
+
+% Low-Pass Filter
+lpFilt = designfilt('lowpassiir', 'FilterOrder', 2, ...
+                     'HalfPowerFrequency', 10000/(fs/2), 'DesignMethod', 'butter');
+
+% Low-Shelf Filter (Manual Design)
+lowShelfFreq = 200; % Low-shelf frequency
+lowShelfGain = 2;   % Gain (linear scale)
+[bLowShelf, aLowShelf] = shelf(lowShelfFreq, lowShelfGain, fs);
+
+% Notch Filter
+notchFreq = 880; % Notch frequency
+notchQ = 0.707;  % Quality factor
+[bNotch, aNotch] = iirnotch(notchFreq/(fs/2), notchFreq/(fs/2) / notchQ);
+
+% Frequency Responses
+[H1, w1] = freqz(lpFilt, worN, fs);
+[H2, w2] = freqz(bLowShelf, aLowShelf, worN, fs);
+[H3, w3] = freqz(bNotch, aNotch, worN, fs);
+
+% Combined Response
+H_combined = H1 .* H2 .* H3;
+
+% Plot Equalizer Magnitude Response
+figure;
+semilogx(worN, 20*log10(abs(H_combined))); % Plot magnitude response in dB
+grid on;
+title('Adaptive Equalization Filter');
+xlabel('Frequency (Hz)');
+ylabel('Magnitude (dB)');
+
+% --- Custom Low-Shelf Filter Function ---
+function [b, a] = shelf(f0, gain, fs)
+    A = sqrt(gain); % Gain in amplitude
+    omega = 2 * pi * f0 / fs;
+    alpha = sin(omega) / (2 * sqrt(A)); % Bandwidth
+
+    b0 = A * ((A + 1) - (A - 1) * cos(omega) + 2 * sqrt(A) * alpha);
+    b1 = 2 * A * ((A - 1) - (A + 1) * cos(omega));
+    b2 = A * ((A + 1) - (A - 1) * cos(omega) - 2 * sqrt(A) * alpha);
+    a0 = (A + 1) + (A - 1) * cos(omega) + 2 * sqrt(A) * alpha;
+    a1 = -2 * ((A - 1) + (A + 1) * cos(omega));
+    a2 = (A + 1) + (A - 1) * cos(omega) - 2 * sqrt(A) * alpha;
+
+    b = [b0, b1, b2] / a0; % Normalize coefficients
+    a = [1, a1 / a0, a2 / a0];
+end
+
+
+
+
+
+
+
+
+4th exp: Develop OFDM standard complaint waveforms using FFT and other blocks
+fs = 20;
+fc = 1.5625;
+n=28;
+
+x1t=exp(j*2*pi*fc*[0:n-1]/fs);
+x1f = fft(x1t,n);
+subplot(2,1,1);
+plot([-n/2:n/2-1]*fs/n, fftshift(abs(x1f)));
+xlabel('frequency,mhz');
+ylabel('amplitude');
+title('frequency response of complex sine signal');
+
+x2f = [zeros(1,n/2) 0 zeros(1,9) 1 zeros(1,n/2-10-1)];
+% rest all zeros;
+x2t = n*ifft(fftshift(x2f));
+diff = x2t-x1t;
+err = diff.*diff/length(diff);
+ht=sinc([-20:20]/3);
+hf=fft(ht,1024);
+subplot(2,1,2);
+plot([-512:511]*30/1024, fftshift(abs(hf)));
+xlabel('frequency,mhz');
+ylabel('amplitude');
+title('frequency response of sinc filter');
+
+
+
+
+
+5th exp: Digital modulation and demodulation in AWGN and other channel setting.
+
+Signal = randi([0 3], 1000, 1);
+BER = [];
+n = 20; 
+for i = 1:n
+    Errors = signal_awgn(Signal, i);
+    BER = [BER Errors / 1000];
+end
+semilogy(1:n, BER, 'o-');
+xlabel('SNR (dB)');
+ylabel('Bit Error Rate (BER)');
+grid on;
+title('BER vs. SNR for 4-PSK modulation');
+
+function Errors = signal_awgn(Signal, SNR)
+    TxSignal = pskmod(Signal, 4, pi/4);
+    RxSignal = awgn(TxSignal, SNR, 'measured');
+    Signal2 = pskdemod(RxSignal, 4, pi/4);
+    Errors = symerr(Signal, Signal2);
+end
+
+
+
+
+
+
+
+
+
+6th exp: Compress image using different standards such as JPEG, JPEG 2000 and SPIHT and EZW codes
+
+6.a) JPEG Compression:
+
+clc;
+clear all;
+close all;
+original_img = imread('flower.jpg');
+figure, imshow(original_img);
+title('Original Image');
+imwrite(original_img, 'new_img.jpeg', 'Quality', 10);
+info_original = imfinfo('flower.jpg');
+info_compressed = imfinfo('new_img.jpeg');
+compressed_img = imread('new_img.jpeg');
+figure, imshow(compressed_img);
+title('Compressed Image');
+Original_size = info_original.FileSize;
+Compressed_size = info_compressed.FileSize;
+Comp_ratio = Original_size / Compressed_size;
+fprintf('Original Image Size: %d bytes\n', Original_size);
+fprintf('Compressed Image Size: %d bytes\n', Compressed_size);
+fprintf('Compression Ratio: %.2f\n', Comp_ratio);
+
+
+
+6.b) SPIHT Compression:
+
+clc;
+close all;
+clear all;
+X = imread('flower.jpg');
+X_resized = imresize(X, [128, 128]);
+[cratio, bpp] = wcompress('c', X_resized, 'imag_c.wtc', 'spiht');
+Xc = wcompress('u', 'imag_c.wtc');
+delete('imag_c.wtc');
+figure;
+subplot(1, 2, 1);
+imshow(X_resized);
+title('Original Image');
+subplot(1, 2, 2);
+imshow(Xc);
+title('Compressed Image');
+fprintf('Compression Ratio: %.2f\n', cratio);
+fprintf('Bits per Pixel (BPP): %.2f\n', bpp); 
+
+
+
+6.c) E2Z Compression:
+
+clc
+close all;
+clear all;
+X = imread("flower.jpg");
+X_resized = imresize(X, [128, 128]);
+[cratio, bpp] = wcompress('c', X_resized, 'imag.c.wtc', 'ezw');
+Xc = wcompress('u', 'imag.c.wtc');
+delete('imag.c.wtc');
+figure;
+subplot(1, 2, 1);
+imshow(X_resized);
+title('Original Image - 4k6');
+subplot(1, 2, 2);
+imshow(Xc); 
+title('Compressed Image - 4k6');
+fprintf('Compression Ratio: %.2f\n', cratio);
+fprintf('Bits per Pixel (BPP): %.2f\n', bpp);
+
+
+
+7th exp: Compress video signal using standards H216, H263 and MPEG4 and H264 Codes
+
+clc;
+clear all;
+close all;
+v = VideoReader('ccbp_selfintro.mp4');
+disp(['Number of Frames: ', num2str(v.NumFrames)]);
+disp(['Frame Rate: ', num2str(v.FrameRate)]);
+fo = [];
+frameCount = 0;
+while hasFrame(v) % Loop through all frames
+ frame = readFrame(v); % Read current frame
+ ch = rgb2gray(frame); % Convert frame to grayscale
+ [n, m] = size(ch); % Get frame dimensions
+ op = [];
+ cnt = 1;
+ temp = ch(1, 1);
+ for i = 1:n
+ for j = 1:m
+ if ch(i, j) == temp
+ cnt = cnt + 1;
+ else
+ op = [op, cnt, temp]; % Store run length and pixel value
+ cnt = 1; % Reset count
+ temp = ch(i, j); % Update pixel value
+ end
+ end
+ end
+ op = [op, cnt, temp];
+ fo = [fo, op];
+ frameCount = frameCount + 1;
+end
+[m, n, p] = size(frame); 
+originalSize = m * n * p * frameCount;
+compressedSize = length(fo);
+compressionRatio = originalSize / compressedSize;
+% Display results
+disp(['Compression Ratio: ', num2str(compressionRatio)]);
+disp(['Total Frames Processed: ', num2str(frameCount)]);
+
+
+
+8th exp: Evaluate different performance aspects required for lossy and lossless compression methods
+
+clc;
+clear all;
+close all;
+rgb = imread('flower.jpg'); 
+imshow(rgb);
+title('Original Image');
+imwrite(rgb, 'mypeppers.tif');
+imwrite(rgb, 'test_image.study_013.tif'); 
+bytes_in_memory_peppers = numel(rgb);
+info_png = imfinfo('peppers.png');
+bytes_on_disk_peppers_png = info_png.FileSize;
+compression_ratio_peppers_png = bytes_in_memory_peppers / bytes_on_disk_peppers_png;
+peppers2 = imread('peppers.png');
+is_equal_png = isequal(rgb, peppers2);
+url = 'https://blogs.mathworks.com/images/steve/2012/plot_screen_shot.png';
+rgb_plot = imread(url);
+bytes_in_memory_plot = numel(rgb_plot);
+info_plot = imfinfo(url);
+bytes_on_disk_plot = info_plot.FileSize;
+compression_ratio_plot = bytes_in_memory_plot / bytes_on_disk_plot;
+imwrite(rgb_plot, 'plot_screen_shot.jpg');
+info_jpg = imfinfo('plot_screen_shot.jpg');
+bytes_on_disk_peppers_jpg = info_jpg.FileSize;
+compression_ratio_peppers_jpg = bytes_in_memory_peppers / bytes_on_disk_peppers_jpg;
+figure;
+subplot(1,2,1);
+imshow('flower.jpg');
+title('Original PNG');
+subplot(1,2,2);
+imshow('flower.jpg');
+title('JPEG Compressed');
+rgb_plot_compressed = imread('plot_screen_shot.jpg');
+figure;
+subplot(2,2,1);
+imshow(rgb_plot);
+title('Original Image');
+axis([0 800 0 600]);
+subplot(2,2,2);
+imshow(rgb_plot_compressed);
+title('JPEG Compressed Image');
+axis([0 800 0 600]);
+disp(['Compression ratio for PNG: ', num2str(compression_ratio_peppers_png)]);
+disp(['Compression ratio for JPEG: ', num2str(compression_ratio_peppers_jpg)]);
+disp(['Compression ratio for Plot Image: ', num2str(compression_ratio_plot)]);
+
+
+
+9th exp: Perform Automatic gain and frequency control for an Audio signal.
+
+clear;
+clc;
+dt = 0.001;
+t = 0:dt:20;
+A = 10;
+f = 0.25; 
+xin = A * sin(2 * pi * f .* t); 
+L = round(10 * f * (1 / dt)); 
+powerTarget = 0.2;
+yout = zeros(1, length(xin)); 
+gainAGC = ones(1, length(xin));
+for n = 1:length(t) - 1 
+ yout(n) = gainAGC(n) * xin(n);
+ gainAGC(n + 1) = gainAGC(n) * (1 - (1 / L) * (yout(n)^2 - powerTarget));
+end
+
+figure;
+subplot(2, 1, 1);
+plot(t, xin, '-b', 'LineWidth', 1.5); hold on;
+plot(t, yout, '-r', 'LineWidth', 1.5);
+grid on; zoom on;
+xlabel('Time (s)'); ylabel('Amplitude');
+legend('Input Signal (x_{in})', 'Output Signal (y_{out})');
+title('AGC Input and Output');
+
+subplot(2, 1, 2);
+plot(t(1:end-1), gainAGC(1:end-1), '-k', 'LineWidth', 1.5);
+grid on; zoom on;
+xlabel('Time (s)'); ylabel('Gain');
+title('Gain of AGC'); 
+
+
+
