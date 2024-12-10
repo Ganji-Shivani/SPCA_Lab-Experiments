@@ -1,0 +1,114 @@
+% MATLAB CODE %
+close all;
+clear all;
+clc;
+%% Load Built-In Audio Data
+load handel.mat; % Load built-in audio (it gives variables 'y' and 'Fs')
+x = y'; % Transpose to row vector
+fs = Fs; % Sampling frequency
+lnx = length(x); % Length of input signal
+L = 2; % Decimation/interpolation factor
+len = 25; % Length of FIR filter
+%% Sub-band Filters
+wc = 1 / L; % Cut-off frequency (normalized)
+freq = -pi : 2 * pi / (lnx - 1) : pi; % Frequency vector
+% Low-pass filter
+lp = fir1(len - 1, wc, 'low');
+% High-pass filter
+hp = fir1(len - 1, wc, 'high');
+%% Filter the Input Signal
+yl = conv(x, lp); % Low-pass filter the input
+yh = conv(x, hp); % High-pass filter the input
+%% Time-Domain Plot
+figure(1);
+subplot(3, 1, 1);
+plot(x); axis([0 lnx min(x) max(x)]);
+ylabel('Amplitude'); title('Speech Signal and Filters in Time Domain');
+subplot(3, 1, 2);
+stem(lp); axis([0 length(lp) min(lp) - 0.1 max(lp) + 0.1]);
+ylabel('Low-pass Filter Coefficients');
+subplot(3, 1, 3);
+stem(hp); axis([0 length(hp) min(hp) - 0.1 max(hp) + 0.1]);
+
+ylabel('High-pass Filter Coefficients');
+%% Frequency-Domain Plot
+X = fftshift(fft(x, lnx)); % FFT of input signal
+Lp = fftshift(fft(lp, lnx)); % FFT of low-pass filter
+Hp = fftshift(fft(hp, lnx)); % FFT of high-pass filter
+YL = fftshift(fft(yl, lnx)); % FFT of low-pass filtered signal
+YH = fftshift(fft(yh, lnx)); % FFT of high-pass filtered signal
+figure(2);
+subplot(3, 2, 1);
+plot(freq / pi, abs(X)); ylabel('|X|');
+title('Frequency-Domain Representation of Speech and Bands');
+axis([-1 1 min(abs(X)) max(abs(X))]);
+subplot(3, 2, 3);
+plot(freq / pi, abs(Lp), 'g'); ylabel('|Lp|');
+axis([-1 1 min(abs(Lp)) max(abs(Lp))]);
+subplot(3, 2, 4);
+plot(freq / pi, abs(Hp), 'g'); ylabel('|Hp|');
+axis([-1 1 min(abs(Hp)) max(abs(Hp))]);
+subplot(3, 2, 5);
+plot(freq / pi, abs(YL), 'b'); ylabel('|YL|');
+axis([-1 1 min(abs(YL)) max(abs(YL))]);
+legend('Low Band');
+subplot(3, 2, 6);
+plot(freq / pi, abs(YH), 'r'); ylabel('|YH|');
+axis([-1 1 min(abs(YH)) max(abs(YH))]);
+legend('High Band');
+%% Downsampling
+ydl = yl(1:L:end); % Low-band decimation
+ydh = yh(1:L:end); % High-band decimation
+%% Reconstruct Bands
+s0 = conv(ydl, lp); % Low-pass reconstruction
+s1 = conv(ydl, hp); % High-pass reconstruction
+s2 = conv(ydh, lp); % Low-pass reconstruction (high-band)
+s3 = conv(ydh, hp); % High-pass reconstruction (high-band)
+b0 = s0(1:L:end); % Decimate reconstructed low-pass
+b1 = s1(1:L:end); % Decimate reconstructed high-pass
+b2 = s2(1:L:end); % Decimate high-pass low-band
+b3 = s3(1:L:end); % Decimate high-pass high-band
+%% Frequency Plot of Four Bands
+figure(3);
+subplot(4, 1, 1);
+plot(freq / pi, abs(fftshift(fft(b0, lnx)))); ylabel('|B0|');
+title('Four Bands in Frequency Domain');
+axis([-1 1 min(abs(fft(b0))) max(abs(fft(b0)))]);
+
+subplot(4, 1, 2);
+plot(freq / pi, abs(fftshift(fft(b1, lnx)))); ylabel('|B1|');
+axis([-1 1 min(abs(fft(b1))) max(abs(fft(b1)))]);
+subplot(4, 1, 3);
+plot(freq / pi, abs(fftshift(fft(b2, lnx)))); ylabel('|B2|');
+axis([-1 1 min(abs(fft(b2))) max(abs(fft(b2)))]);
+subplot(4, 1, 4);
+plot(freq / pi, abs(fftshift(fft(b3, lnx)))); ylabel('|B3|');
+axis([-1 1 min(abs(fft(b3))) max(abs(fft(b3)))]);
+%% Reconstruction Using Filters
+reconst_fil = L * fir1(len - 1, 1 / L); % Reconstruction filter with cutoff 1/L
+sb0 = conv(reconst_fil, b0);
+sb1 = conv(reconst_fil, b1);
+sb2 = conv(reconst_fil, b2);
+sb3 = conv(reconst_fil, b3);
+Slow = sb0 + sb1; % Combine low-band signals
+Shigh = sb2 + sb3; % Combine high-band signals
+subll = zeros(1, length(Slow) * 2); % Interpolation for low-band
+subhh = zeros(1, length(Shigh) * 2); % Interpolation for high-band
+subll(1:L:end) = Slow;
+subhh(1:L:end) = Shigh;
+sub_recon = conv(reconst_fil, subll) + conv(reconst_fil, subhh); % Final reconstruction
+%% Final Comparison
+figure(4);
+subplot(3, 1, 1);
+plot(freq / pi, abs(X)); ylabel('|X|');
+title('Final Bands and Reconstruction');
+axis([-1 1 min(abs(X)) max(abs(X))]);
+subplot(3, 1, 2);
+plot(freq / pi, abs(fftshift(fft(Slow, lnx)))); ylabel('|Low Band|');
+axis([-1 1 min(abs(fft(Slow))) max(abs(fft(Slow)))]);
+subplot(3, 1, 3);
+plot(freq / pi, abs(fftshift(fft(sub_recon, lnx))), 'r'); ylabel('|Synthesized|');
+axis([-1 1 min(abs(fft(sub_recon))) max(abs(fft(sub_recon)))]);
+legend('Synthesized Band'); 
+
+
